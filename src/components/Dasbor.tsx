@@ -14,7 +14,8 @@ import {
   Calendar,
   LogOut,
   Plus,
-  CreditCard
+  CreditCard,
+  Car
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { useAuth } from './AuthProvider';
@@ -24,6 +25,7 @@ export default function Dasbor() {
   const currentPath = location.pathname;
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [showNotif, setShowNotif] = React.useState(false);
 
   const handleSignOut = async () => {
     await auth.signOut();
@@ -56,6 +58,7 @@ export default function Dasbor() {
             <SidebarLink icon={CreditCard} label="Point of Sale" to="/dashboard/pos" active={currentPath === '/dashboard/pos'} />
             <SidebarLink icon={Package} label="Inventaris" to="/dashboard/inventory" active={currentPath === '/dashboard/inventory'} />
             <SidebarLink icon={Users} label="Pelanggan" to="/dashboard/customers" active={currentPath === '/dashboard/customers'} />
+            <SidebarLink icon={Car} label="Kendaraan" to="/dashboard/vehicles" active={currentPath === '/dashboard/vehicles'} />
             <SidebarLink icon={Calendar} label="Janji Temu" to="/dashboard/appointments" active={currentPath === '/dashboard/appointments'} />
           </nav>
         </div>
@@ -119,14 +122,51 @@ export default function Dasbor() {
               <div className="w-2 h-2 rounded-full bg-emerald-500 technical-glow-emerald"></div>
               <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest font-mono">Aktif</span>
             </div>
-            <div className="flex items-center gap-3">
-              <button className="p-2.5 bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all relative">
+            <div className="flex items-center gap-3 relative">
+              <button 
+                onClick={() => setShowNotif(!showNotif)}
+                className="p-2.5 bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all relative"
+              >
                 <Bell className="w-4 h-4" />
                 <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-orange-500 rounded-full technical-glow-orange" />
               </button>
-              <button className="flex items-center gap-2 px-6 py-2.5 bg-[#ee4323] hover:bg-[#ff5733] text-white rounded-lg text-xs font-black uppercase tracking-widest transition-all technical-glow-orange active:scale-95 shadow-lg shadow-orange-600/20">
-                <Plus className="w-4 h-4" /> Order Baru
-              </button>
+              
+              {showNotif && (
+                <div className="absolute top-full right-0 mt-2 w-80 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
+                  <div className="p-4 border-b border-white/5 bg-slate-950/50">
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-orange-500" />
+                      Notifikasi Sistem
+                    </h3>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <div className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+                       <div className="flex items-start gap-3">
+                         <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                           <AlertCircle className="w-4 h-4 text-emerald-500" />
+                         </div>
+                         <div>
+                            <p className="text-sm text-white font-bold mb-1">Pembaruan Sistem Berhasil</p>
+                            <p className="text-xs text-slate-400">Modul kendaraan telah ditambahkan ke sistem utama.</p>
+                            <p className="text-[10px] text-slate-500 mt-2 font-mono">2 Menit yang lalu</p>
+                         </div>
+                       </div>
+                    </div>
+                    <div className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer">
+                       <div className="flex items-start gap-3">
+                         <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                           <Calendar className="w-4 h-4 text-orange-500" />
+                         </div>
+                         <div>
+                            <p className="text-sm text-white font-bold mb-1">Pengingat Jadwal</p>
+                            <p className="text-xs text-slate-400">Terdapat 3 janji temu hari ini yang perlu dicek.</p>
+                            <p className="text-[10px] text-slate-500 mt-2 font-mono">1 Jam yang lalu</p>
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

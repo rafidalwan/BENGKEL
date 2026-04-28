@@ -35,7 +35,6 @@ export default function Inventaris() {
   const [isAdding, setIsAdding] = useState(false);
   
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus inventaris ini? Tindakan ini tidak dapat dibatalkan.')) return;
     try {
       await deleteDoc(doc(db, 'inventory', itemId));
     } catch (error) {

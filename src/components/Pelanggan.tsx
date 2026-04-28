@@ -33,7 +33,6 @@ export default function Pelanggan() {
   const [showModal, setShowModal] = useState(false);
 
   const handleDeleteCustomer = async (customerId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data pelanggan ini?')) return;
     try {
       await deleteDoc(doc(db, 'customers', customerId));
     } catch (error) {

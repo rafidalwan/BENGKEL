@@ -42,3 +42,14 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+html.light-theme-forced {
+  filter: invert(1) hue-rotate(180deg);
+  background-color: #f8fafc;
+}
+
+html.light-theme-forced img,
+html.light-theme-forced svg,
+html.light-theme-forced [data-lucide] {
+  filter: invert(1) hue-rotate(180deg);
+}

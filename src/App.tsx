@@ -12,6 +12,7 @@ import BerandaDasbor from './components/BerandaDasbor';
 import LayananServis from './components/LayananServis';
 import Inventaris from './components/Inventaris';
 import Pelanggan from './components/Pelanggan';
+import Kendaraan from './components/Kendaraan';
 import Jadwal from './components/Jadwal';
 import Keuangan from './components/Keuangan';
 import Pengaturan from './components/Pengaturan';
@@ -95,6 +96,7 @@ function MainApp() {
         <Route path="services" element={<LayananServis />} />
         <Route path="inventory" element={<Inventaris />} />
         <Route path="customers" element={<Pelanggan />} />
+        <Route path="vehicles" element={<Kendaraan />} />
         <Route path="appointments" element={<Jadwal />} />
         <Route path="pos" element={<Kasir />} />
         <Route path="finance" element={<Keuangan />} />

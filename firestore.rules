@@ -38,15 +38,20 @@ service cloud.firestore {
     }
 
     function isValidWorkOrder(data) {
-      return data.keys().hasAll(['orderNumber', 'customerName', 'vehicle', 'licensePlate', 'serviceType', 'status', 'priority', 'managerId', 'createdAt', 'updatedAt']) &&
-             data.keys().size() == 10 &&
-             data.orderNumber is string && data.orderNumber.size() <= 20 &&
+      return data.keys().hasAll(['orderNumber', 'customerName', 'customerId', 'vehicle', 'vehicleId', 'licensePlate', 'mechanicName', 'mechanicId', 'jenisService', 'opsiService', 'keluhan', 'status', 'managerId', 'createdAt', 'updatedAt']) &&
+             data.keys().size() == 15 &&
+             data.orderNumber is string && data.orderNumber.size() <= 50 &&
              data.customerName is string && data.customerName.size() <= 100 &&
+             data.customerId is string &&
              data.vehicle is string && data.vehicle.size() <= 100 &&
-             data.licensePlate is string && data.licensePlate.size() <= 20 &&
-             data.serviceType is string && data.serviceType.size() <= 200 &&
+             data.vehicleId is string &&
+             data.licensePlate is string && data.licensePlate.size() <= 50 &&
+             data.mechanicName is string && data.mechanicName.size() <= 100 &&
+             data.mechanicId is string &&
+             data.jenisService is string && data.jenisService.size() <= 50 &&
+             data.opsiService is list && data.opsiService.size() <= 20 &&
+             data.keluhan is string && data.keluhan.size() <= 2000 &&
              data.status in ['Antrean', 'Diagnosa', 'Proses', 'Menunggu Part', 'Siap', 'Selesai', 'Queued', 'Diagnosing', 'In Progress', 'Pending Parts', 'Testing', 'Ready', 'Completed'] &&
-             data.priority in ['Tinggi', 'Menengah', 'Normal', 'High', 'Medium', 'Low'] &&
              data.managerId == request.auth.uid;
     }
 
@@ -76,14 +81,32 @@ service cloud.firestore {
 
     function isValidAppointment(data) {
       return data.keys().hasAll(['customerName', 'vehicle', 'licensePlate', 'serviceType', 'date', 'time', 'status', 'managerId', 'createdAt']) &&
-             data.keys().size() == 9 &&
+             (data.keys().size() == 9 || (data.keys().size() == 10 && 'updatedAt' in data.keys())) &&
              data.customerName is string && data.customerName.size() <= 100 &&
              data.vehicle is string && data.vehicle.size() <= 100 &&
-             data.licensePlate is string && data.licensePlate.size() <= 20 &&
+             data.licensePlate is string && data.licensePlate.size() <= 50 &&
              data.serviceType is string && data.serviceType.size() <= 200 &&
              data.date is string && data.date.size() <= 20 &&
              data.time is string && data.time.size() <= 20 &&
              data.status in ['Terjadwal', 'Selesai', 'Dibatalkan', 'Scheduled', 'Completed', 'Cancelled'] &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['licensePlate', 'model', 'customerId', 'customerName', 'managerId', 'createdAt']) &&
+             data.keys().size() == 6 &&
+             data.licensePlate is string && data.licensePlate.size() <= 50 &&
+             data.model is string && data.model.size() <= 100 &&
+             data.customerId is string && data.customerId.size() <= 100 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidMechanic(data) {
+      return data.keys().hasAll(['name', 'phone', 'managerId', 'createdAt']) &&
+             data.keys().size() == 4 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 50 &&
              data.managerId == request.auth.uid;
     }
 
@@ -110,7 +133,7 @@ service cloud.firestore {
       allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
       allow create: if isSignedIn() && isValidWorkOrder(incoming()) && incoming().managerId == request.auth.uid;
       allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidWorkOrder(incoming()) &&
-                    (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'serviceType', 'priority']) || 
+                    (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'jenisService', 'opsiService', 'keluhan']) || 
                      incoming().managerId == existing().managerId);
       allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
     }
@@ -148,6 +171,24 @@ service cloud.firestore {
       allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
       allow create: if isSignedIn() && isValidFinancialTransaction(incoming()) && incoming().managerId == request.auth.uid;
       allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidFinancialTransaction(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // Vehicles
+    match /vehicles/{vehicleId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidVehicle(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidVehicle(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // Mechanics
+    match /mechanics/{mechanicId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidMechanic(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidMechanic(incoming());
       allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
     }
   }

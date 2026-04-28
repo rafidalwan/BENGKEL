@@ -15,10 +15,9 @@ import {
   X,
   PlayCircle
 } from 'lucide-react';
-import { db } from '../lib/firebase';
+import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { useAuth } from './AuthProvider';
-import { handleFirestoreError, OperationType } from './AuthProvider';
 
 interface WorkOrder {
   id: string;
@@ -26,51 +25,70 @@ interface WorkOrder {
   customerName: string;
   vehicle: string;
   licensePlate: string;
-  serviceType: string;
+  jenisService: string;
+  opsiService: string[];
+  keluhan: string;
   status: string;
-  priority: string;
   createdAt: any;
+  mechanicName?: string;
 }
 
 export default function LayananServis() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [mechanics, setMechanics] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  
-  // Modal & Filter state
-  const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('SEMUA');
+  
+  const [showModal, setShowModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  
   const [formData, setFormData] = useState({
+    customerId: '',
     customerName: '',
-    vehicle: '',
+    vehicleId: '',
+    vehicleName: '',
     licensePlate: '',
-    serviceType: '',
-    priority: 'Menengah',
+    mechanicId: '',
+    mechanicName: '',
+    jenisService: 'Service Rutin',
+    opsiService: [] as string[],
+    keluhan: '',
+    opsiLainnya: '',
   });
+
+  const getOptions = (jenis: string) => {
+    switch (jenis) {
+       case 'Service Rutin': return ['Penggantian Oli Mesin', 'Penggantian Filter Oli', 'Pengecekan dan Pembersihan Filter Udara', 'Pengecekan Cairan Kendaraan', 'Pengecekan Sistem Kelistrikan Dasar', 'Pengecekan Tekanan dan Kondisi Ban', 'Lainnya'];
+       case 'Service Ringan': return ['Tune Up Mesin', 'Servis Sistem Pengereman', 'Spooring dan Balancing', 'Servis AC Ringan', 'Penggantian Oli Transmisi dan Gardan', 'Kuras Radiator (Flushing)', 'Lainnya'];
+       case 'Service Berat': return ['Turun Mesin (Engine Overhaul)', 'Overhaul Transmisi', 'Penggantian Kopling Set', 'Perbaikan Kaki-Kaki Total', 'Perbaikan Sistem Kelistrikan Total', 'Lainnya'];
+       default: return [];
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
-      collection(db, 'workOrders'),
-      where('managerId', '==', user.uid),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as WorkOrder[];
-      setOrders(ordersData);
+    const qOrders = query(collection(db, 'workOrders'), where('managerId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      setOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as WorkOrder[]);
       setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'workOrders');
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'workOrders'));
 
-    return () => unsubscribe();
+    const qCustomers = query(collection(db, 'customers'), where('managerId', '==', user.uid));
+    const unsubCust = onSnapshot(qCustomers, (snap) => setCustomers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    const qVehicles = query(collection(db, 'vehicles'), where('managerId', '==', user.uid));
+    const unsubVeh = onSnapshot(qVehicles, (snap) => setVehicles(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    const qMechanics = query(collection(db, 'mechanics'), where('managerId', '==', user.uid));
+    const unsubMech = onSnapshot(qMechanics, (snap) => setMechanics(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+
+    return () => { unsubOrders(); unsubCust(); unsubVeh(); unsubMech(); };
   }, [user]);
 
   const handleCreateOrder = async (e: React.FormEvent) => {
@@ -82,22 +100,23 @@ export default function LayananServis() {
       await addDoc(collection(db, 'workOrders'), {
         orderNumber: `WO-${new Date().getFullYear()}-${String(orderCount).padStart(3, '0')}`,
         customerName: formData.customerName,
-        vehicle: formData.vehicle,
+        customerId: formData.customerId,
+        vehicle: formData.vehicleName,
+        vehicleId: formData.vehicleId,
         licensePlate: formData.licensePlate,
-        serviceType: formData.serviceType,
+        mechanicName: formData.mechanicName || 'Belum Ditugaskan',
+        mechanicId: formData.mechanicId || '',
+        jenisService: formData.jenisService,
+        opsiService: formData.opsiService.map(opsi => opsi === 'Lainnya' ? (formData.opsiLainnya || 'Lainnya') : opsi),
+        keluhan: formData.keluhan,
         status: 'Antrean',
-        priority: formData.priority,
         managerId: user.uid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       setShowModal(false);
       setFormData({
-        customerName: '',
-        vehicle: '',
-        licensePlate: '',
-        serviceType: '',
-        priority: 'Menengah',
+        customerId: '', customerName: '', vehicleId: '', vehicleName: '', licensePlate: '', mechanicId: '', mechanicName: '', jenisService: 'Service Rutin', opsiService: [], keluhan: '', opsiLainnya: '',
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'workOrders');
@@ -108,17 +127,13 @@ export default function LayananServis() {
 
   const handleUpdateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'workOrders', orderId), {
-        status: newStatus,
-        updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(db, 'workOrders', orderId), { status: newStatus, updatedAt: serverTimestamp() });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'workOrders');
     }
   };
 
   const handleDeleteOrder = async (orderId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus perintah kerja ini? Tindakan ini tidak dapat dibatalkan.')) return;
     try {
       await deleteDoc(doc(db, 'workOrders', orderId));
     } catch (error) {
@@ -126,25 +141,22 @@ export default function LayananServis() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
-      order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.vehicle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.licensePlate.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'SEMUA' || order.status.toUpperCase() === statusFilter;
+  const filteredOrders = orders.filter(o => {
+    const matchesSearch = o.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          o.customerName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'SEMUA' || o.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   return (
-    <div className="space-y-8 pb-12 relative">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="space-y-6 pb-12">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-bold font-display text-white tracking-tight flex items-center gap-3">
-             <Wrench className="w-8 h-8 text-orange-500" />
-             Unit Komando Servis
+          <h1 className="text-4xl font-bold font-display text-white tracking-tight flex items-center gap-3">
+             <Wrench className="w-10 h-10 text-cyan-500" />
+             Layanan Servis
           </h1>
-          <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest mt-1">Orkestrasi pesanan & alur kerja teknisi</p>
+          <p className="text-slate-500 font-mono text-[10px] uppercase tracking-widest mt-2 ml-1 cursor-default">MEMANTAU_PERINTAH_KERJA // STATUS_AKTIF_OPERASIONAL</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
@@ -155,7 +167,6 @@ export default function LayananServis() {
         </button>
       </div>
 
-      {/* Filters & Search */}
       <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/10 shadow-2xl flex flex-col md:flex-row gap-6 items-center">
         <div className="relative flex-1 group w-full">
           <Search className="w-4 h-4 text-slate-600 absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-cyan-400 transition-colors" />
@@ -164,7 +175,7 @@ export default function LayananServis() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="PINDAI_LOG_BERDASARKAN_NAMA_ATAU_ID..." 
-            className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-white/5 rounded-xl text-[11px] font-mono tracking-tight outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700"
+            className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-white/5 rounded-xl text-[11px] font-mono tracking-tight outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all placeholder:text-slate-700 text-white"
           />
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -178,17 +189,16 @@ export default function LayananServis() {
             className="flex-1 md:flex-none px-5 py-3 bg-white/5 text-slate-400 rounded-xl hover:bg-white/10 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest border border-white/5 outline-none cursor-pointer appearance-none"
           >
             <option value="SEMUA">SEMUA_STATUS</option>
-            <option value="ANTREAN">ANTREAN</option>
-            <option value="DIAGNOSA">DIAGNOSA</option>
-            <option value="PROSES">PROSES</option>
-            <option value="MENUNGGU PART">MENUNGGU_PART</option>
-            <option value="SIAP">SIAP</option>
-            <option value="SELESAI">SELESAI</option>
+            <option value="Antrean">ANTREAN</option>
+            <option value="Diagnosa">DIAGNOSA</option>
+            <option value="Proses">PROSES</option>
+            <option value="Menunggu Part">MENUNGGU_PART</option>
+            <option value="Siap">SIAP</option>
+            <option value="Selesai">SELESAI</option>
           </select>
         </div>
       </div>
 
-      {/* Orders Table */}
       <div className="bg-slate-900/60 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden shadow-2xl flex flex-col min-h-[500px]">
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -207,9 +217,9 @@ export default function LayananServis() {
                 <tr>
                   <th className="px-8 py-4">ID Transaksi</th>
                   <th className="px-8 py-4">Subjek & Aset</th>
+                  <th className="px-8 py-4">Mekanik</th>
                   <th className="px-8 py-4">Operasi</th>
                   <th className="px-8 py-4">Status & Tindakan</th>
-                  <th className="px-8 py-4">Prioritas</th>
                   <th className="px-8 py-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -236,7 +246,12 @@ export default function LayananServis() {
                       </div>
                     </td>
                     <td className="px-8 py-5">
-                      <p className="text-xs text-slate-400 font-mono uppercase tracking-tight">{order.serviceType}</p>
+                      <p className="text-xs text-indigo-400 font-bold tracking-tight">{order.mechanicName || 'Belum Ditugaskan'}</p>
+                    </td>
+                    <td className="px-8 py-5">
+                      <p className="text-xs text-slate-400 font-mono tracking-tight">{order.jenisService}</p>
+                      <p className="text-[10px] text-cyan-400 font-mono tracking-tight mt-0.5">{order.opsiService?.join(', ')}</p>
+                      {order.keluhan && <p className="text-[9px] text-slate-500 font-mono tracking-tight mt-1 line-clamp-2">Keluhan: {order.keluhan}</p>}
                     </td>
                     <td className="px-8 py-5">
                       <select 
@@ -259,15 +274,7 @@ export default function LayananServis() {
                         <option value="Selesai">SELESAI</option>
                       </select>
                     </td>
-                    <td className="px-8 py-5">
-                      <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded border inline-block ${
-                        order.priority === 'Tinggi' ? 'text-pink-500 border-pink-500/20 bg-pink-500/5' :
-                        order.priority === 'Menengah' ? 'text-orange-500 border-orange-500/20 bg-orange-500/5' :
-                        'text-slate-500 border-white/5 bg-white/5'
-                      }`}>
-                        {(order.priority || 'NORMAL').toUpperCase()}
-                      </span>
-                    </td>
+                    
                     <td className="px-8 py-5 text-right flex justify-end gap-2">
                        <button onClick={() => handleDeleteOrder(order.id)} className="p-2 hover:bg-rose-500/10 rounded-lg transition-all text-slate-600 hover:text-rose-500" title="Hapus">
                         <Trash2 className="w-4 h-4" />
@@ -281,7 +288,6 @@ export default function LayananServis() {
         )}
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden p-8 animate-in fade-in zoom-in-95 duration-200">
@@ -294,62 +300,119 @@ export default function LayananServis() {
             
             <form onSubmit={handleCreateOrder} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Nama Pelanggan</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({...formData, customerName: e.target.value})}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-colors placeholder:text-slate-700"
-                  placeholder="Mis. Bambang S."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Kendaraan</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.vehicle}
-                    onChange={(e) => setFormData({...formData, vehicle: e.target.value})}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-colors placeholder:text-slate-700"
-                    placeholder="Mis. Toyota Avanza"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Plat Nomor</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.licensePlate}
-                    onChange={(e) => setFormData({...formData, licensePlate: e.target.value})}
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-colors placeholder:text-slate-700"
-                    placeholder="Mis. B 1234 XYZ"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Jenis Layanan</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formData.serviceType}
-                  onChange={(e) => setFormData({...formData, serviceType: e.target.value})}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-colors placeholder:text-slate-700"
-                  placeholder="Mis. Ganti Oli & Filter"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Prioritas</label>
+                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Pelanggan</label>
                 <select 
-                  value={formData.priority}
-                  onChange={(e) => setFormData({...formData, priority: e.target.value})}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-colors"
+                  required
+                  value={formData.customerId}
+                  onChange={(e) => {
+                    const cust = customers.find(c => c.id === e.target.value);
+                    setFormData({...formData, customerId: e.target.value, customerName: cust?.name || '', vehicleId: '', vehicleName: '', licensePlate: ''});
+                  }}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50"
                 >
-                  <option value="Normal">Normal</option>
-                  <option value="Menengah">Menengah</option>
-                  <option value="Tinggi">Tinggi</option>
+                  <option value="">-- Pilih Pelanggan --</option>
+                  {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
+              </div>
+
+              {formData.customerId && (
+                <div>
+                  <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Kendaraan Pelanggan</label>
+                  <select 
+                    required
+                    value={formData.vehicleId}
+                    onChange={(e) => {
+                      const v = vehicles.find(vec => vec.id === e.target.value);
+                      setFormData({...formData, vehicleId: e.target.value, vehicleName: v?.model || '', licensePlate: v?.licensePlate || ''});
+                    }}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50"
+                  >
+                    <option value="">-- Pilih Kendaraan (Plat - Model) --</option>
+                    {vehicles.filter(v => v.customerId === formData.customerId).map(v => (
+                      <option key={v.id} value={v.id}>{v.licensePlate} - {v.model}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                 <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Mekanik</label>
+                 <select 
+                    value={formData.mechanicId}
+                    onChange={(e) => {
+                      const m = mechanics.find(mech => mech.id === e.target.value);
+                      setFormData({...formData, mechanicId: e.target.value, mechanicName: m?.name || ''});
+                    }}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50"
+                  >
+                    <option value="">-- Pilih Mekanik (Opsional) --</option>
+                    {mechanics.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                 </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Jenis Service</label>
+                <select 
+                  value={formData.jenisService}
+                  onChange={(e) => {
+                    const newJenis = e.target.value;
+                    setFormData({...formData, jenisService: newJenis, opsiService: []});
+                  }}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+                >
+                  <option value="Service Rutin">Service Rutin</option>
+                  <option value="Service Ringan">Service Ringan</option>
+                  <option value="Service Berat">Service Berat</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Opsi Service</label>
+                <div className="grid grid-cols-1 gap-2 bg-slate-950 border border-white/10 rounded-xl p-4">
+                  {getOptions(formData.jenisService).map((opsi) => (
+                    <label key={opsi} className="flex items-center gap-3 cursor-pointer group">
+                      <div className="relative flex items-center justify-center w-5 h-5 rounded border border-white/20 bg-slate-900 group-hover:border-cyan-500 transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={formData.opsiService.includes(opsi)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setFormData({...formData, opsiService: [...formData.opsiService, opsi]});
+                            } else {
+                              setFormData({...formData, opsiService: formData.opsiService.filter(o => o !== opsi)});
+                            }
+                          }}
+                          className="absolute opacity-0 w-full h-full cursor-pointer"
+                        />
+                        {formData.opsiService.includes(opsi) && <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />}
+                      </div>
+                      <span className="text-sm text-slate-300 group-hover:text-white transition-colors">{opsi}</span>
+                    </label>
+                  ))}
+                  {formData.opsiService.includes('Lainnya') && (
+                    <div className="mt-2 pl-8">
+                      <input 
+                        type="text" 
+                        value={formData.opsiLainnya}
+                        onChange={(e) => setFormData({...formData, opsiLainnya: e.target.value})}
+                        className="w-full bg-slate-900 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-700"
+                        placeholder="Tuliskan opsi service lainnya"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black tracking-widest text-slate-500 uppercase mb-2">Keluhan</label>
+                <textarea 
+                  rows={3}
+                  value={formData.keluhan}
+                  onChange={(e) => setFormData({...formData, keluhan: e.target.value})}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors placeholder:text-slate-700 resize-none"
+                  placeholder="Deskripsikan keluhan kendaraan (Opsional)"
+                />
               </div>
 
               <div className="pt-4 flex gap-3">

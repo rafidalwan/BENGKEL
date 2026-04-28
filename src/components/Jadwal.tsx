@@ -45,7 +45,6 @@ export default function Jadwal() {
   });
 
   const handleDeleteAppointment = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus janji temu ini?')) return;
     try {
       await deleteDoc(doc(db, 'appointments', id));
     } catch (error) {

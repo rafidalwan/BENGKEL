@@ -39,7 +39,6 @@ export default function Keuangan() {
   });
 
   const handleDeleteTransaction = async (id: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus transaksi ini?')) return;
     try {
       await deleteDoc(doc(db, 'financials', id));
     } catch (error) {
