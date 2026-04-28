@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 3. Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'workshopName', 'role']) &&
+             data.keys().size() == 5 && // Including createdAt if generated server-side or passed
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.workshopName is string && data.workshopName.size() <= 100 &&
+             data.role in ['admin', 'staff'];
+    }
+
+    function isValidWorkOrder(data) {
+      return data.keys().hasAll(['orderNumber', 'customerName', 'vehicle', 'licensePlate', 'serviceType', 'status', 'priority', 'managerId', 'createdAt', 'updatedAt']) &&
+             data.keys().size() == 10 &&
+             data.orderNumber is string && data.orderNumber.size() <= 20 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.vehicle is string && data.vehicle.size() <= 100 &&
+             data.licensePlate is string && data.licensePlate.size() <= 20 &&
+             data.serviceType is string && data.serviceType.size() <= 200 &&
+             data.status in ['Antrean', 'Diagnosa', 'Proses', 'Menunggu Part', 'Siap', 'Selesai', 'Queued', 'Diagnosing', 'In Progress', 'Pending Parts', 'Testing', 'Ready', 'Completed'] &&
+             data.priority in ['Tinggi', 'Menengah', 'Normal', 'High', 'Medium', 'Low'] &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidInventoryItem(data) {
+      return data.keys().hasAll(['sku', 'name', 'category', 'stock', 'minStock', 'price', 'status', 'managerId', 'updatedAt']) &&
+             data.keys().size() == 9 &&
+             data.sku is string && data.sku.size() <= 50 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.stock is int &&
+             data.minStock is int &&
+             data.price is number &&
+             data.status in ['Tersedia', 'Stok Rendah', 'Habis', 'In Stock', 'Low Stock', 'Out of Stock'] &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidCustomer(data) {
+      return data.keys().hasAll(['name', 'phone', 'email', 'address', 'totalVisits', 'managerId', 'createdAt']) &&
+             data.keys().size() == 7 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.address is string && data.address.size() <= 200 &&
+             data.totalVisits is int &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidAppointment(data) {
+      return data.keys().hasAll(['customerName', 'vehicle', 'licensePlate', 'serviceType', 'date', 'time', 'status', 'managerId', 'createdAt']) &&
+             data.keys().size() == 9 &&
+             data.customerName is string && data.customerName.size() <= 100 &&
+             data.vehicle is string && data.vehicle.size() <= 100 &&
+             data.licensePlate is string && data.licensePlate.size() <= 20 &&
+             data.serviceType is string && data.serviceType.size() <= 200 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.time is string && data.time.size() <= 20 &&
+             data.status in ['Terjadwal', 'Selesai', 'Dibatalkan', 'Scheduled', 'Completed', 'Cancelled'] &&
+             data.managerId == request.auth.uid;
+    }
+
+    function isValidFinancialTransaction(data) {
+      return data.keys().hasAll(['type', 'amount', 'description', 'date', 'managerId', 'createdAt']) &&
+             data.keys().size() == 6 &&
+             data.type in ['Pemasukan', 'Pengeluaran', 'Income', 'Expense'] &&
+             data.amount is number &&
+             data.description is string && data.description.size() <= 200 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.managerId == request.auth.uid;
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().email == request.auth.token.email;
+      allow update: if isOwner(userId) && isValidUser(incoming()) && incoming().email == existing().email;
+    }
+
+    // 2. Work Orders
+    match /workOrders/{orderId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidWorkOrder(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidWorkOrder(incoming()) &&
+                    (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt', 'serviceType', 'priority']) || 
+                     incoming().managerId == existing().managerId);
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // 3. Inventory
+    match /inventory/{itemId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidInventoryItem(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidInventoryItem(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // 4. Customers
+    match /customers/{customerId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidCustomer(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidCustomer(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // 5. Appointments
+    match /appointments/{appointmentId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAppointment(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidAppointment(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+
+    // 6. Financials
+    match /financials/{transactionId} {
+      allow list: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.managerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidFinancialTransaction(incoming()) && incoming().managerId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.managerId == request.auth.uid && isValidFinancialTransaction(incoming());
+      allow delete: if isSignedIn() && resource.data.managerId == request.auth.uid;
+    }
+  }
+}

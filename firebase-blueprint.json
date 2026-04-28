@@ -1,0 +1,125 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about workshop managers and staff.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Verified email address" },
+        "workshopName": { "type": "string", "description": "Name of the workshop they manage" },
+        "role": { "type": "string", "enum": ["admin", "staff"], "description": "Access level" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "workshopName", "role"]
+    },
+    "WorkOrder": {
+      "title": "Service Work Order",
+      "description": "A repair or maintenance task for a vehicle.",
+      "type": "object",
+      "properties": {
+        "orderNumber": { "type": "string", "description": "Human-readable order ID (e.g. WO-2024-001)" },
+        "customerId": { "type": "string", "description": "Reference to a customer or manager" },
+        "customerName": { "type": "string" },
+        "vehicle": { "type": "string", "description": "Vehicle make/model" },
+        "licensePlate": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "status": { "type": "string", "enum": ["Queued", "Diagnosing", "In Progress", "Pending Parts", "Testing", "Ready", "Completed"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High"] },
+        "managerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderNumber", "customerName", "vehicle", "serviceType", "status", "priority", "managerId"]
+    },
+    "InventoryItem": {
+      "title": "Inventory Spare Part",
+      "description": "Stock items kept in the workshop.",
+      "type": "object",
+      "properties": {
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "stock": { "type": "integer" },
+        "minStock": { "type": "integer" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["In Stock", "Low Stock", "Out of Stock"] },
+        "managerId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["sku", "name", "category", "stock", "minStock", "price", "status", "managerId"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A customer of the workshop.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "totalVisits": { "type": "integer" },
+        "managerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "totalVisits", "managerId"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "A scheduled service appointment.",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string" },
+        "vehicle": { "type": "string" },
+        "licensePlate": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "status": { "type": "string", "enum": ["Scheduled", "Completed", "Cancelled"] },
+        "managerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerName", "vehicle", "serviceType", "date", "time", "status", "managerId"]
+    },
+    "FinancialTransaction": {
+      "title": "Financial Transaction",
+      "description": "A financial record of an order or inventory purchase.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["Income", "Expense"] },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "date": { "type": "string" },
+        "managerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["type", "amount", "description", "date", "managerId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/workOrders/{orderId}": {
+      "schema": "WorkOrder",
+      "description": "Collection of all work orders."
+    },
+    "/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Collection of all inventory parts."
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Collection of all customers."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Collection of all appointments."
+    },
+    "/financials/{transactionId}": {
+      "schema": "FinancialTransaction",
+      "description": "Collection of all financial transactions."
+    }
+  }
+}
